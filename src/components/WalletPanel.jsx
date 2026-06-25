@@ -4,7 +4,7 @@ import InvoiceGenerator from './InvoiceGenerator'
 import InvoicePayer from './InvoicePayer'
 import { copyToClipboard, formatSats } from '../utils'
 
-export default function WalletPanel({ index, wallet, onWalletReady }) {
+export default function WalletPanel({ index, wallet, onWalletReady, network }) {
   const [status, setStatus] = useState('idle') // idle | loading | ready | error
   const [mnemonic, setMnemonic] = useState('')
   const [mnemonicInput, setMnemonicInput] = useState('')
@@ -13,6 +13,8 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
   const [logs, setLogs] = useState([])
   const [copied, setCopied] = useState('')
   const walletRef = useRef(null)
+  const listenersRef = useRef(null)
+  const lastBalanceUpdateRef = useRef(null)
 
   const addLog = useCallback((msg, type = 'info') => {
     setLogs(prev => [...prev.slice(-19), { msg, type, id: Date.now() + Math.random() }])
@@ -27,11 +29,38 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
     }
   }, [addLog])
 
+  const detachWalletListeners = useCallback((w) => {
+    if (!w || !listenersRef.current) return
+
+    const { handlers } = listenersRef.current
+    const remove = typeof w.off === 'function'
+      ? w.off.bind(w)
+      : typeof w.removeListener === 'function'
+        ? w.removeListener.bind(w)
+        : null
+
+    if (!remove) {
+      listenersRef.current = null
+      return
+    }
+
+    remove(SparkWalletEvent.BalanceUpdate, handlers.onBalanceUpdate)
+    remove(SparkWalletEvent.TransferClaimed, handlers.onTransferClaimed)
+    remove(SparkWalletEvent.DepositConfirmed, handlers.onDepositConfirmed)
+    remove(SparkWalletEvent.StreamConnected, handlers.onStreamConnected)
+    remove(SparkWalletEvent.StreamDisconnected, handlers.onStreamDisconnected)
+    listenersRef.current = null
+  }, [])
+
   const initWallet = useCallback(async (useExisting) => {
     setStatus('loading')
-    addLog('Initializing wallet…', 'info')
+    addLog(`Initializing wallet on ${network}…`, 'info')
     try {
-      const opts = { options: { network: 'REGTEST' } }
+      if (walletRef.current) {
+        detachWalletListeners(walletRef.current)
+      }
+
+      const opts = { options: { network } }
       if (useExisting && mnemonicInput.trim()) {
         opts.mnemonicOrSeed = mnemonicInput.trim()
       }
@@ -47,30 +76,50 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
       setSparkAddress(addr)
 
       await refreshBalance(w)
+      lastBalanceUpdateRef.current = null
 
       // Subscribe to events
-      w.on(SparkWalletEvent.BalanceUpdate, ({ available }) => {
+      const onBalanceUpdate = ({ available }) => {
         setBalance(available)
+        if (lastBalanceUpdateRef.current === available) return
+        lastBalanceUpdateRef.current = available
         addLog(`Balance updated: ${formatSats(available)}`, 'success')
-      })
+      }
 
-      w.on(SparkWalletEvent.TransferClaimed, (transferId, newBalance) => {
+      const onTransferClaimed = (transferId, newBalance) => {
         setBalance(newBalance)
         addLog(`Transfer claimed: ${transferId.slice(0, 12)}… | ${formatSats(newBalance)}`, 'success')
-      })
+      }
 
-      w.on(SparkWalletEvent.DepositConfirmed, (depositId, newBalance) => {
+      const onDepositConfirmed = (depositId, newBalance) => {
         setBalance(newBalance)
         addLog(`Deposit confirmed: ${depositId.slice(0, 12)}… | ${formatSats(newBalance)}`, 'success')
-      })
+      }
 
-      w.on(SparkWalletEvent.StreamConnected, () => {
+      const onStreamConnected = () => {
         addLog('Event stream connected', 'success')
-      })
+      }
 
-      w.on(SparkWalletEvent.StreamDisconnected, (reason) => {
+      const onStreamDisconnected = (reason) => {
         addLog(`Stream disconnected: ${reason}`, 'error')
-      })
+      }
+
+      w.on(SparkWalletEvent.BalanceUpdate, onBalanceUpdate)
+      w.on(SparkWalletEvent.TransferClaimed, onTransferClaimed)
+      w.on(SparkWalletEvent.DepositConfirmed, onDepositConfirmed)
+      w.on(SparkWalletEvent.StreamConnected, onStreamConnected)
+      w.on(SparkWalletEvent.StreamDisconnected, onStreamDisconnected)
+
+      listenersRef.current = {
+        wallet: w,
+        handlers: {
+          onBalanceUpdate,
+          onTransferClaimed,
+          onDepositConfirmed,
+          onStreamConnected,
+          onStreamDisconnected,
+        },
+      }
 
       setStatus('ready')
       addLog('Wallet ready', 'success')
@@ -79,7 +128,7 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
       setStatus('error')
       addLog(`Init failed: ${e.message}`, 'error')
     }
-  }, [mnemonicInput, addLog, refreshBalance, onWalletReady, index])
+  }, [mnemonicInput, addLog, refreshBalance, onWalletReady, index, network, detachWalletListeners])
 
   const handleCopy = useCallback(async (text, key) => {
     await copyToClipboard(text)
@@ -91,71 +140,106 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
     if (walletRef.current) refreshBalance(walletRef.current)
   }, [refreshBalance])
 
+  const handleMnemonicKeyDown = useCallback((e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return
+    e.preventDefault()
+    if (status === 'loading' || !mnemonicInput.trim()) return
+    initWallet(true)
+  }, [status, mnemonicInput, initWallet])
+
   return (
     <div className="wallet-panel">
       <div className="wallet-header">
         <div className="wallet-header-top">
           <div className="wallet-num">{index + 1}</div>
-          <div className="wallet-title">Wallet {index + 1}</div>
+          <div className="wallet-title">
+            {`Wallet ${index + 1}`}
+            {status === 'ready' && balance !== null && (
+              <>
+                {': '}
+                <span className="wallet-title-symbol">₿</span>
+                <span className="wallet-title-amount">{formatSats(balance)}</span>
+              </>
+            )}
+          </div>
           <span className={`badge badge-${status === 'ready' ? 'connected' : status === 'loading' ? 'loading' : 'disconnected'}`}>
             {status === 'ready' ? 'Connected' : status === 'loading' ? 'Connecting…' : 'Not Connected'}
           </span>
           {status === 'ready' && (
-            <button
-              className="copy-btn"
-              onClick={handleRefreshBalance}
-              title="Refresh balance"
-              style={{ marginLeft: 'auto' }}
-            >
-              ↻ Refresh
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem' }}>
+              <button
+                className="copy-btn header-icon-btn"
+                onClick={handleRefreshBalance}
+                title="Refresh balance"
+                aria-label="Refresh balance"
+              >
+                <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+              </button>
+              <button
+                className="copy-btn header-icon-btn"
+                onClick={() => handleCopy(mnemonic, 'mnemonic')}
+                title="Copy wallet mnemonic"
+                aria-label="Copy wallet mnemonic"
+                disabled={!mnemonic}
+              >
+                <i className={`fa-solid ${copied === 'mnemonic' ? 'fa-check' : 'fa-key'}`} aria-hidden="true" />
+              </button>
+              <button
+                className="copy-btn header-icon-btn"
+                onClick={() => handleCopy(sparkAddress, 'addr')}
+                title="Copy Spark address"
+                aria-label="Copy Spark address"
+                disabled={!sparkAddress}
+              >
+                <i className={`fa-solid ${copied === 'addr' ? 'fa-check' : 'fa-bolt'}`} aria-hidden="true" />
+              </button>
+            </div>
           )}
         </div>
 
-        {status === 'ready' && (
-          <>
-            <div className="wallet-balance">
-              {balance !== null ? formatSats(balance) : '…'}<span>sats</span>
-            </div>
-            <div className="wallet-address-row">
-              <span className="wallet-address-label">Spark</span>
-              <span className="mono" style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {sparkAddress}
-              </span>
-              <button className="copy-btn" onClick={() => handleCopy(sparkAddress, 'addr')}>
-                {copied === 'addr' ? '✓' : 'Copy'}
-              </button>
-            </div>
-          </>
-        )}
       </div>
 
       <div className="wallet-content">
         {/* Init section */}
         {status !== 'ready' && (
           <div className="section-card">
-            <div className="section-title"><span className="icon">🔑</span> Initialize Wallet</div>
+            <div className="section-title">
+              <span className="icon">🔑</span>
+              Initialize Wallet
+              <a
+                className="sdk-link"
+                href="https://docs.spark.money/api-reference/wallet/initialize"
+                target="_blank"
+                rel="noreferrer"
+              >
+                SparkWallet.initialize()
+              </a>
+            </div>
             <div className="init-form">
               <div className="field">
-                <label>Mnemonic (leave blank to generate new)</label>
+                <label>Provide mnemonic or leave blank to generate new wallet</label>
                 <textarea
                   rows={2}
                   placeholder="word1 word2 word3 … (12 or 24 words)"
                   value={mnemonicInput}
                   onChange={e => setMnemonicInput(e.target.value)}
+                  onKeyDown={handleMnemonicKeyDown}
                   disabled={status === 'loading'}
                   className="mono"
+                  style={{ resize: 'none' }}
                 />
               </div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  className="btn-primary"
-                  onClick={() => initWallet(false)}
-                  disabled={status === 'loading'}
-                  style={{ flex: 1 }}
-                >
-                  {status === 'loading' ? <><span className="spinner" />Connecting…</> : '+ New Wallet'}
-                </button>
+                {!mnemonicInput.trim() && (
+                  <button
+                    className="btn-primary"
+                    onClick={() => initWallet(false)}
+                    disabled={status === 'loading'}
+                    style={{ flex: 1 }}
+                  >
+                    {status === 'loading' ? <><span className="spinner" />Connecting…</> : 'Generate New Wallet'}
+                  </button>
+                )}
                 {mnemonicInput.trim() && (
                   <button
                     className="btn-secondary"
@@ -167,22 +251,6 @@ export default function WalletPanel({ index, wallet, onWalletReady }) {
                   </button>
                 )}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Show mnemonic after init */}
-        {status === 'ready' && mnemonic && (
-          <div className="section-card">
-            <div className="section-title"><span className="icon">🔑</span> Mnemonic</div>
-            <div className="invoice-box">
-              <div className="invoice-box-header">
-                <span className="invoice-box-label">Recovery Phrase</span>
-                <button className="copy-btn" onClick={() => handleCopy(mnemonic, 'mnemonic')}>
-                  {copied === 'mnemonic' ? '✓ Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="mono" style={{ color: 'var(--warn)', fontSize: '0.72rem' }}>{mnemonic}</div>
             </div>
           </div>
         )}

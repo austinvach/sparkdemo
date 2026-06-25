@@ -23,9 +23,9 @@
   color: var(--text-muted);
 }
 
-.network-badge {
+.network-control {
   margin-left: auto;
-  padding: 0.25rem 0.75rem;
+  padding: 0.35rem 0.55rem;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -33,6 +33,19 @@
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.05em;
+}
+
+.network-control select {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
 }
 
 .app-body {
@@ -98,18 +111,37 @@
   color: var(--text);
 }
 
-.wallet-balance {
-  font-size: 1.5rem;
+.wallet-title-amount {
+  color: var(--accent-light);
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-title-symbol {
+  color: var(--text-muted);
+}
+
+.wallet-title-balance {
+  font-size: 1.2rem;
   font-weight: 700;
   color: var(--accent-light);
   font-variant-numeric: tabular-nums;
 }
 
-.wallet-balance span {
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-left: 0.25rem;
+.wallet-balance-symbol {
+  font-size: inherit;
+  color: color-mix(in srgb, var(--accent-light) 20%, var(--text-muted) 48%);
+  font-weight: inherit;
+  margin-right: 0.2rem;
+}
+
+.header-icon-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
 }
 
 .wallet-address-row {
@@ -163,6 +195,21 @@
 
 .section-title .icon {
   font-size: 1rem;
+}
+
+.sdk-link {
+  margin-left: auto;
+  font-size: 0.68rem;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--accent-light);
+  text-decoration: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sdk-link:hover {
+  text-decoration: underline;
 }
 
 /* Init form */

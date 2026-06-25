@@ -4,7 +4,7 @@ import { copyToClipboard, formatSats } from '../utils'
 export default function InvoiceGenerator({ wallet, addLog }) {
   const [amountSats, setAmountSats] = useState('')
   const [memo, setMemo] = useState('')
-  const [includeSparkAddress, setIncludeSparkAddress] = useState(false)
+  const [includeSparkInvoice, setIncludeSparkInvoice] = useState(true)
   const [loading, setLoading] = useState(false)
   const [invoice, setInvoice] = useState(null)
   const [copied, setCopied] = useState(false)
@@ -12,27 +12,29 @@ export default function InvoiceGenerator({ wallet, addLog }) {
   const handleGenerate = useCallback(async () => {
     const sats = parseInt(amountSats, 10)
     if (!sats || sats <= 0) {
-      addLog('Enter a valid amount in sats', 'error')
+      addLog('Enter a valid amount in ₿', 'error')
       return
     }
     setLoading(true)
     setInvoice(null)
-    addLog(`Generating Lightning invoice for ${formatSats(sats)} sats…`, 'info')
+    addLog(`Generating Lightning invoice for ${formatSats(sats)} ₿…`, 'info')
     try {
       const params = {
         amountSats: sats,
         memo: memo || undefined,
-        includeSparkAddress,
       }
+      if (includeSparkInvoice) params.includeSparkInvoice = true
+
       const result = await wallet.createLightningInvoice(params)
       setInvoice(result)
-      addLog(`Invoice created (${formatSats(sats)} sats)${includeSparkAddress ? ' + Spark address' : ''}`, 'success')
+      const modeText = includeSparkInvoice ? ' + includeSparkInvoice' : ''
+      addLog(`Invoice created (${formatSats(sats)} ₿)${modeText}`, 'success')
     } catch (e) {
       addLog(`Invoice error: ${e.message}`, 'error')
     } finally {
       setLoading(false)
     }
-  }, [wallet, amountSats, memo, includeSparkAddress, addLog])
+  }, [wallet, amountSats, memo, includeSparkInvoice, addLog])
 
   const handleCopy = useCallback(async () => {
     if (!invoice) return
@@ -43,11 +45,22 @@ export default function InvoiceGenerator({ wallet, addLog }) {
 
   return (
     <div className="section-card">
-      <div className="section-title"><span className="icon">⬇️</span> Receive – Create Lightning Invoice</div>
+      <div className="section-title">
+        <span className="icon">⚡</span>
+        Create Lightning Invoice
+        <a
+          className="sdk-link"
+          href="https://docs.spark.money/api-reference/wallet/create-lightning-invoice"
+          target="_blank"
+          rel="noreferrer"
+        >
+          wallet.createLightningInvoice()
+        </a>
+      </div>
 
       <div className="row">
-        <div className="field">
-          <label>Amount (sats)</label>
+        <div className="field" style={{ flex: '1 1 0' }}>
+          <label>Amount (₿)</label>
           <input
             type="number"
             min="1"
@@ -57,7 +70,7 @@ export default function InvoiceGenerator({ wallet, addLog }) {
             disabled={loading}
           />
         </div>
-        <div className="field">
+        <div className="field" style={{ flex: '1 1 0' }}>
           <label>Memo (optional)</label>
           <input
             type="text"
@@ -67,30 +80,37 @@ export default function InvoiceGenerator({ wallet, addLog }) {
             disabled={loading}
           />
         </div>
-      </div>
-
-      <div className="field" style={{ marginBottom: '0.75rem' }}>
-        <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={includeSparkAddress}
-            onChange={e => setIncludeSparkAddress(e.target.checked)}
-            disabled={loading}
-            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--accent)' }}
-          />
-          <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Include Spark address in invoice (enables Spark-native payment fallback)
-          </span>
-        </label>
+        <div className="field" style={{ flex: '0 0 auto', marginBottom: 0 }}>
+          <label style={{ visibility: 'hidden' }}>includeSparkInvoice</label>
+          <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: 0, minHeight: 40, display: 'flex', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={includeSparkInvoice}
+              onChange={e => setIncludeSparkInvoice(e.target.checked)}
+              disabled={loading}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--accent)' }}
+            />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <a
+                href="https://docs.spark.money/api-reference/wallet/create-lightning-invoice#param-include-spark-invoice"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-light)', textDecoration: 'none' }}
+              >
+                includeSparkInvoice
+              </a>
+            </span>
+          </label>
+        </div>
       </div>
 
       <button
         className="btn-primary"
         onClick={handleGenerate}
         disabled={loading || !amountSats}
-        style={{ width: '100%' }}
+        style={{ width: '100%', marginTop: '0.6rem' }}
       >
-        {loading ? <><span className="spinner" />Generating…</> : '⚡ Generate Invoice'}
+        {loading ? <><span className="spinner" />Generating…</> : 'Generate Invoice'}
       </button>
 
       {invoice && (
@@ -100,7 +120,7 @@ export default function InvoiceGenerator({ wallet, addLog }) {
               <span className="invoice-box-label">Bolt11 Invoice</span>
               <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                 <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                  {formatSats(invoice.invoice.amountMSats ? Math.ceil(Number(invoice.invoice.amountMSats) / 1000) : parseInt(amountSats, 10))} sats
+                  {formatSats(invoice.invoice.amountMSats ? Math.ceil(Number(invoice.invoice.amountMSats) / 1000) : parseInt(amountSats, 10))} ₿
                 </span>
                 <button className="copy-btn" onClick={handleCopy}>
                   {copied ? '✓ Copied' : 'Copy'}
@@ -111,9 +131,9 @@ export default function InvoiceGenerator({ wallet, addLog }) {
               {invoice.invoice.encodedInvoice}
             </div>
           </div>
-          {includeSparkAddress && (
+          {includeSparkInvoice && (
             <div style={{ fontSize: '0.72rem', color: 'var(--success)', marginTop: '0.25rem' }}>
-              ✓ Spark address embedded – sender can pay via Spark network if supported
+              ✓ includeSparkInvoice enabled: Spark invoice embedded in routing hints
             </div>
           )}
         </div>

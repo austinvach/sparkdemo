@@ -14,7 +14,7 @@ export default function PaymentFlow({ wallets }) {
   const [receiverIdx, setReceiverIdx] = useState(0)
   const [amountSats, setAmountSats] = useState('')
   const [memo, setMemo] = useState('')
-  const [includeSparkAddress, setIncludeSparkAddress] = useState(false)
+  const [includeSparkInvoice, setIncludeSparkInvoice] = useState(true)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [invoice, setInvoice] = useState(null)
   const [genLog, setGenLog] = useState('')
@@ -22,7 +22,7 @@ export default function PaymentFlow({ wallets }) {
   // Step 2: Pay
   const [senderIdx, setSenderIdx] = useState(1)
   const [maxFeeSats, setMaxFeeSats] = useState('10')
-  const [preferSpark, setPreferSpark] = useState(false)
+  const [preferSpark, setPreferSpark] = useState(true)
   const [payLoading, setPayLoading] = useState(false)
   const [payResult, setPayResult] = useState(null)
   const [payLog, setPayLog] = useState('')
@@ -38,11 +38,13 @@ export default function PaymentFlow({ wallets }) {
     setInvoice(null)
     setGenLog('')
     try {
-      const result = await receiver.createLightningInvoice({
+      const params = {
         amountSats: sats,
         memo: memo || undefined,
-        includeSparkAddress,
-      })
+      }
+      if (includeSparkInvoice) params.includeSparkInvoice = true
+
+      const result = await receiver.createLightningInvoice(params)
       setInvoice(result)
       setGenLog('')
       setStep(2)
@@ -53,7 +55,7 @@ export default function PaymentFlow({ wallets }) {
     } finally {
       setInvoiceLoading(false)
     }
-  }, [wallets, receiverIdx, amountSats, memo, includeSparkAddress])
+  }, [wallets, receiverIdx, amountSats, memo, includeSparkInvoice])
 
   const handlePayInvoice = useCallback(async () => {
     const sender = wallets[senderIdx]
@@ -93,7 +95,8 @@ export default function PaymentFlow({ wallets }) {
     setPayResult(null)
     setAmountSats('')
     setMemo('')
-    setIncludeSparkAddress(false)
+    setIncludeSparkInvoice(true)
+    setPreferSpark(true)
     setGenLog('')
     setPayLog('')
   }, [])
@@ -158,24 +161,35 @@ export default function PaymentFlow({ wallets }) {
             </select>
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
-            <label>Amount (sats)</label>
+            <label>Amount (₿)</label>
             <input type="number" min="1" placeholder="e.g. 1000" value={amountSats} onChange={e => setAmountSats(e.target.value)} disabled={invoiceLoading} />
           </div>
           <div className="field" style={{ marginBottom: 0 }}>
             <label>Memo (optional)</label>
             <input type="text" placeholder="Payment for…" value={memo} onChange={e => setMemo(e.target.value)} disabled={invoiceLoading} />
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer', marginBottom: '0.5rem' }}>
+          <div className="field" style={{ marginBottom: 0 }}>
+            <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer' }}>
               <input
                 type="checkbox"
-                checked={includeSparkAddress}
-                onChange={e => setIncludeSparkAddress(e.target.checked)}
+                checked={includeSparkInvoice}
+                onChange={e => setIncludeSparkInvoice(e.target.checked)}
                 disabled={invoiceLoading}
                 style={{ width: 15, height: 15, cursor: 'pointer', accentColor: 'var(--accent)' }}
               />
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Include Spark address</span>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                <a
+                  href="https://docs.spark.money/api-reference/wallet/create-lightning-invoice#param-include-spark-invoice"
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: 'var(--accent-light)', textDecoration: 'none' }}
+                >
+                  includeSparkInvoice
+                </a>
+              </span>
             </label>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button className="btn-primary" onClick={handleGenerateInvoice} disabled={invoiceLoading || !amountSats}>
               {invoiceLoading ? <><span className="spinner" />Generating…</> : '⚡ Generate Invoice'}
             </button>
@@ -190,16 +204,16 @@ export default function PaymentFlow({ wallets }) {
           <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '0.75rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <span style={{ fontSize: '0.68rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Bolt11 Invoice — Wallet {receiverIdx + 1} receiving {formatSats(parseInt(amountSats, 10))} sats
+                Bolt11 Invoice — Wallet {receiverIdx + 1} receiving {formatSats(parseInt(amountSats, 10))} ₿
               </span>
               <button className="copy-btn" onClick={handleCopyInvoice}>{copied ? '✓ Copied' : 'Copy'}</button>
             </div>
             <div className="mono" style={{ color: 'var(--accent-light)', fontSize: '0.7rem', lineHeight: 1.4 }}>
               {invoice.invoice.encodedInvoice}
             </div>
-            {includeSparkAddress && (
+            {includeSparkInvoice && (
               <div style={{ fontSize: '0.7rem', color: 'var(--success)', marginTop: '0.4rem' }}>
-                ✓ Spark address embedded
+                ✓ includeSparkInvoice enabled: Spark invoice embedded in routing hints
               </div>
             )}
           </div>
@@ -218,7 +232,7 @@ export default function PaymentFlow({ wallets }) {
               </select>
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
-              <label>Max Fee (sats)</label>
+              <label>Max Fee (₿)</label>
               <input type="number" min="0" value={maxFeeSats} onChange={e => setMaxFeeSats(e.target.value)} disabled={payLoading} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -251,7 +265,7 @@ export default function PaymentFlow({ wallets }) {
           <div style={{ padding: '0.75rem 1.25rem', background: 'rgba(16,185,129,0.1)', border: '1px solid var(--success)', borderRadius: 10 }}>
             <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--success)' }}>✓ Payment Complete!</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-              Wallet {senderIdx + 1} → Wallet {receiverIdx + 1}: {formatSats(parseInt(amountSats, 10))} sats
+              Wallet {senderIdx + 1} → Wallet {receiverIdx + 1}: {formatSats(parseInt(amountSats, 10))} ₿
             </div>
           </div>
           <button className="btn-secondary" onClick={handleReset}>⚡ New Payment</button>

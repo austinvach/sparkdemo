@@ -75,11 +75,11 @@ label {
 
 .log-item {
   font-size: 0.76rem; padding: 0.3rem 0.5rem; border-radius: 6px;
-  border-left: 3px solid var(--border); color: var(--text-muted); background: var(--surface);
+  color: var(--text-muted); background: var(--surface);
 }
-.log-item.success { border-color: var(--success); color: var(--success); }
-.log-item.error { border-color: var(--error); color: var(--error); }
-.log-item.info { border-color: var(--accent-light); color: var(--accent-light); }
+.log-item.success { color: var(--success); }
+.log-item.error { color: var(--error); }
+.log-item.info { color: var(--accent-light); }
 
 .checkbox-row {
   display: flex; align-items: center; gap: 0.5rem; cursor: pointer; user-select: none;

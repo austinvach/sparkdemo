@@ -1,11 +1,18 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 
 export default function InvoicePayer({ wallet, addLog, onPaid }) {
   const [invoiceInput, setInvoiceInput] = useState('')
   const [maxFeeSats, setMaxFeeSats] = useState('10')
-  const [preferSpark, setPreferSpark] = useState(false)
+  const [preferSpark, setPreferSpark] = useState(true)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const invoiceRef = useRef(null)
+
+  useEffect(() => {
+    if (!invoiceRef.current) return
+    invoiceRef.current.style.height = 'auto'
+    invoiceRef.current.style.height = `${invoiceRef.current.scrollHeight}px`
+  }, [invoiceInput])
 
   const handlePay = useCallback(async () => {
     const inv = invoiceInput.trim()
@@ -40,24 +47,36 @@ export default function InvoicePayer({ wallet, addLog, onPaid }) {
 
   return (
     <div className="section-card">
-      <div className="section-title"><span className="icon">⬆️</span> Send – Pay Lightning Invoice</div>
+      <div className="section-title">
+        <span className="icon">💸</span>
+        Pay Lightning Invoice
+        <a
+          className="sdk-link"
+          href="https://docs.spark.money/api-reference/wallet/pay-lightning-invoice"
+          target="_blank"
+          rel="noreferrer"
+        >
+          wallet.payLightningInvoice()
+        </a>
+      </div>
 
       <div className="field">
-        <label>Bolt11 Invoice</label>
+        <label>Invoice</label>
         <textarea
-          rows={3}
+          ref={invoiceRef}
+          rows={6}
           placeholder="lnbcrt1… (paste invoice from receiver)"
           value={invoiceInput}
           onChange={e => setInvoiceInput(e.target.value)}
           disabled={loading}
           className="mono"
-          style={{ resize: 'vertical' }}
+          style={{ resize: 'none', overflow: 'hidden' }}
         />
       </div>
 
       <div className="row">
-        <div className="field">
-          <label>Max Fee (sats)</label>
+        <div className="field" style={{ flex: '1 1 0' }}>
+          <label>Max Fee (₿)</label>
           <input
             type="number"
             min="0"
@@ -66,8 +85,9 @@ export default function InvoicePayer({ wallet, addLog, onPaid }) {
             disabled={loading}
           />
         </div>
-        <div className="field" style={{ justifyContent: 'flex-end', paddingBottom: '0.75rem' }}>
-          <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer' }}>
+        <div className="field" style={{ flex: '0 0 auto', marginBottom: 0 }}>
+          <label style={{ visibility: 'hidden' }}>preferSpark</label>
+          <label className="checkbox-row" style={{ textTransform: 'none', letterSpacing: 'normal', cursor: 'pointer', whiteSpace: 'nowrap', marginBottom: 0, minHeight: 40, display: 'flex', alignItems: 'center' }}>
             <input
               type="checkbox"
               checked={preferSpark}
@@ -75,7 +95,16 @@ export default function InvoicePayer({ wallet, addLog, onPaid }) {
               disabled={loading}
               style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--accent)' }}
             />
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prefer Spark route</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <a
+                href="https://docs.spark.money/wallets/withdraw-to-lightning#spark-transfer-preference"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent-light)', textDecoration: 'none' }}
+              >
+                preferSpark
+              </a>
+            </span>
           </label>
         </div>
       </div>
@@ -84,9 +113,9 @@ export default function InvoicePayer({ wallet, addLog, onPaid }) {
         className="btn-success"
         onClick={handlePay}
         disabled={loading || !invoiceInput.trim()}
-        style={{ width: '100%' }}
+        style={{ width: '100%', marginTop: '0.6rem' }}
       >
-        {loading ? <><span className="spinner" />Sending…</> : '💸 Pay Invoice'}
+        {loading ? <><span className="spinner" />Sending…</> : 'Pay Invoice'}
       </button>
 
       {result && !result.error && (

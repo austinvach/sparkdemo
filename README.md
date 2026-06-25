@@ -1,4 +1,4 @@
-# ⚡ Spark Wallet Demo
+# Spark Sandbox
 
 A browser-based demo app that showcases two independent Spark wallets making Lightning payments between each other using the plain [@buildonspark/spark-sdk](https://docs.spark.money/wallets/overview).
 
